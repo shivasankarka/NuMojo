@@ -91,9 +91,11 @@ from .indexing import (
 from .io import (
     load,
     load_npy,
+    load_torch,
     loadtxt,
     save,
     save_npy,
+    save_torch,
     savetxt,
     set_printoptions,
 )
