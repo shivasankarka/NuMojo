@@ -90,8 +90,10 @@ from .indexing import (
 )
 from .io import (
     load,
+    load_npy,
     loadtxt,
     save,
+    save_npy,
     savetxt,
     set_printoptions,
 )
