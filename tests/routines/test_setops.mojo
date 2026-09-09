@@ -30,12 +30,8 @@ def test_unique_counts() raises:
     var anp = a.to_numpy()
     var result = nm.unique_counts(a)
     var npresult = np.unique(anp, return_counts=True)
-    check_is_close(
-        result[0], npresult[0], "`unique_counts` values fails."
-    )
-    check_is_close(
-        result[1], npresult[1], "`unique_counts` counts fails."
-    )
+    check_is_close(result[0], npresult[0], "`unique_counts` values fails.")
+    check_is_close(result[1], npresult[1], "`unique_counts` counts fails.")
 
 
 def test_unique_axis() raises:
@@ -77,11 +73,11 @@ def test_unique_inverse() raises:
     var anp = a.to_numpy()
     var result = nm.unique_inverse(a)
     var npresult = np.unique(anp, return_inverse=True)
+    check_is_close(result[0], npresult[0], "`unique_inverse` values fails.")
     check_is_close(
-        result[0], npresult[0], "`unique_inverse` values fails."
-    )
-    check_is_close(
-        result[1], np.reshape(npresult[1], anp.shape), "`unique_inverse` inverse fails."
+        result[1],
+        np.reshape(npresult[1], anp.shape),
+        "`unique_inverse` inverse fails.",
     )
 
 
@@ -97,7 +93,9 @@ def test_unique_all() raises:
     check_is_close(result[0], npresult[0], "`unique_all` values fails.")
     check_is_close(result[1], npresult[1], "`unique_all` index fails.")
     check_is_close(
-        result[2], np.reshape(npresult[2], anp.shape), "`unique_all` inverse fails."
+        result[2],
+        np.reshape(npresult[2], anp.shape),
+        "`unique_all` inverse fails.",
     )
     check_is_close(result[3], npresult[3], "`unique_all` counts fails.")
 
@@ -112,9 +110,7 @@ def test_unique_index_axis() raises:
     check_is_close(
         result[0], npresult[0], "`unique_index` axis=0 values fails."
     )
-    check_is_close(
-        result[1], npresult[1], "`unique_index` axis=0 index fails."
-    )
+    check_is_close(result[1], npresult[1], "`unique_index` axis=0 index fails.")
 
 
 def test_unique_inverse_axis() raises:

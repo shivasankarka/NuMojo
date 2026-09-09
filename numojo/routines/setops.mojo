@@ -200,7 +200,9 @@ def _gather_rows[
     for i in range(m):
         var src_row = rows[i]
         for j in range(row_size):
-            out.unsafe_set(i * row_size + j, B.unsafe_get(src_row * row_size + j))
+            out.unsafe_set(
+                i * row_size + j, B.unsafe_get(src_row * row_size + j)
+            )
     return out^
 
 
@@ -243,9 +245,7 @@ def unique[dtype: DType](A: NDArray[dtype]) raises -> NDArray[dtype]:
     return result^
 
 
-def unique[
-    dtype: DType
-](A: NDArray[dtype], axis: Int) raises -> NDArray[dtype]:
+def unique[dtype: DType](A: NDArray[dtype], axis: Int) raises -> NDArray[dtype]:
     """
     (overload) Returns the sorted unique slices of an array along `axis`.
 
@@ -390,7 +390,10 @@ def unique_counts[
     for i in range(m):
         out_counts.unsafe_set(i, counts[i])
 
-    return (moveaxis(_gather_rows(B, unique_rows, row_size), 0, ax), out_counts^)
+    return (
+        moveaxis(_gather_rows(B, unique_rows, row_size), 0, ax),
+        out_counts^,
+    )
 
 
 # ===----------------------------------------------------------------------=== #

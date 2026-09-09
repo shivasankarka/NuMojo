@@ -1432,8 +1432,7 @@ def repeat[
             NumojoError(
                 category="value",
                 message=String(
-                    "`repeats` ({} elements) must match the size of `A`"
-                    " ({})."
+                    "`repeats` ({} elements) must match the size of `A` ({})."
                 ).format(len(repeats), flat.size),
                 location="repeat",
             )
@@ -1480,9 +1479,7 @@ def _pad_map_coord(coord: Int, size: Int, mode: String) raises -> Int:
         raise Error(
             NumojoError(
                 category="value",
-                message=String("Unsupported `mode` for `pad`: {}").format(
-                    mode
-                ),
+                message=String("Unsupported `mode` for `pad`: {}").format(mode),
                 location="pad",
             )
         )
@@ -1544,8 +1541,7 @@ def pad[
             NumojoError(
                 category="value",
                 message=String(
-                    "`pad_width` must have 1 or `A.ndim` ({}) entries, got"
-                    " {}."
+                    "`pad_width` must have 1 or `A.ndim` ({}) entries, got {}."
                 ).format(A.ndim, len(pad_width)),
                 location="pad",
             )
@@ -1584,9 +1580,7 @@ def pad[
         raise Error(
             NumojoError(
                 category="value",
-                message=String("Unsupported `mode` for `pad`: {}").format(
-                    mode
-                ),
+                message=String("Unsupported `mode` for `pad`: {}").format(mode),
                 location="pad",
             )
         )
