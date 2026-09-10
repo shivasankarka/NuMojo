@@ -231,14 +231,14 @@ def _npy_header_dict_value(header: String, key: String) raises -> String:
 
     if strip_opener:
         return String(
-            StringSlice(unsafe_from_utf8=Span(bytes)[value_start + 1 : value_end])
+            StringSlice(
+                unsafe_from_utf8=Span(bytes)[value_start + 1 : value_end]
+            )
         )
     elif closer == UInt8(ord(",")):
         return String(
             String(
-                StringSlice(
-                    unsafe_from_utf8=Span(bytes)[value_start:value_end]
-                )
+                StringSlice(unsafe_from_utf8=Span(bytes)[value_start:value_end])
             ).strip()
         )
     else:
@@ -339,8 +339,7 @@ def save_npy[dtype: DType](path: String, A: NDArray[dtype]) raises:
             NumojoError(
                 category="value",
                 message=String(
-                    "{} has no NumPy dtype, so it has no .npy"
-                    " representation."
+                    "{} has no NumPy dtype, so it has no .npy representation."
                 ).format(String(dtype)),
                 location="npy.save_npy()",
             )
@@ -561,6 +560,8 @@ def load_npy[dtype: DType](path: String) raises -> NDArray[dtype]:
 
     var item_size = size_of[Scalar[dtype]]()
     for i in range(result.size):
-        result.unsafe_set(i, _read_scalar_bytes[dtype](data, offset + i * item_size))
+        result.unsafe_set(
+            i, _read_scalar_bytes[dtype](data, offset + i * item_size)
+        )
 
     return result^
