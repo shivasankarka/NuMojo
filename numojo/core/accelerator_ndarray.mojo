@@ -28,11 +28,7 @@ from max.gpu.host import DeviceContext
 # ===----------------------------------------------------------------------=== #
 # NuMojo
 # ===----------------------------------------------------------------------=== #
-from numojo.core.accelerator.array_like import (
-    NDArrayLike,
-    NDArrayReadAccessor,
-    NDArrayWriteAccessor,
-)
+from numojo.core.accelerator.array_like import NDArrayLike
 from numojo.core.accelerator.device import Device
 import numojo.core.accelerator.kernels as kernels
 from numojo.core.accelerator.ndarray_view import AcceleratorNDArrayView
@@ -68,6 +64,7 @@ struct AcceleratorNDArray[
 
     comptime ElementType = Self.dtype
     comptime DeviceType = Self.device
+    comptime Writable = True
 
     # ===------------------------------------------------------------------=== #
     # Lifecycle
@@ -607,65 +604,39 @@ struct AcceleratorNDArray[
     @always_inline("nodebug")
     def unsafe_ptr[
         o: Origin
-    ](ref[o] self,) -> Pointer[Scalar[Self.dtype], o]:
-        """Return an origin-preserving pointer to the first logical element.
+    ](ref[o] self,) -> Pointer[Scalar[Self.dtype], ImmOrigin(o)]:
+        """Return an immutable pointer to the first logical element.
 
         Parameters:
             o: Origin of the current owner borrow.
 
         Returns:
-            A pointer with the mutability and origin of the current owner borrow.
+            Immutable pointer tied to the current owner borrow.
 
         Examples:
             Use `array.unsafe_ptr()` for a SIMD loop or kernel launch.
         """
         var offset = self._layout.offset
-        return self._unsafe_base_ptr().unsafe_offset(offset)
-
-    def read_access[
-        o: Origin
-    ](
-        ref[o] self,
-    ) -> NDArrayReadAccessor[
-        Self.dtype,
-        Self.device,
-        ImmOrigin(o),
-    ]:
-        """Create read access tied to this owner borrow.
-
-        Parameters:
-            o: Origin of the current owner borrow.
-
-        Returns:
-            Read accessor with immutable storage provenance.
-
-        Examples:
-            Use `array.read_access()` in generic read-only algorithms.
-        """
-        return NDArrayReadAccessor[Self.dtype, Self.device, ImmOrigin(o)](
-            self._unsafe_base_ptr().as_imm(),
-            self._layout.copy(),
-        )
+        return self._unsafe_base_ptr().as_imm().unsafe_offset(offset)
 
     @always_inline("nodebug")
-    def write_access[
+    def unsafe_mut_ptr[
         o: MutOrigin
-    ](ref[o] self,) -> NDArrayWriteAccessor[Self.dtype, Self.device, o]:
-        """Create write access tied to this mutable owner borrow.
+    ](ref[o] self,) -> Pointer[Scalar[Self.dtype], o]:
+        """Return a mutable pointer to the first logical element.
 
         Parameters:
             o: Mutable origin of the current owner borrow.
 
         Returns:
-            Write accessor with mutable storage provenance.
+            Mutable pointer tied to the current mutable owner borrow.
 
         Examples:
-            Use `array.write_access()` for output SIMD loops.
+            Use `array.unsafe_mut_ptr()` for output SIMD loops.
         """
-        return NDArrayWriteAccessor[Self.dtype, Self.device, o](
-            self._unsafe_base_ptr(),
-            self._layout.copy(),
-        )
+        comptime assert Self.Writable, "cannot mutate a read-only array"
+        var offset = self._layout.offset
+        return self._unsafe_base_ptr().unsafe_offset(offset)
 
     def device_context(
         self,
@@ -958,16 +929,13 @@ struct AcceleratorNDArray[
         out.flags = self.flags
 
         comptime if Self.device.type == "cpu":
-            var input_access = self.read_access()
-            var output_access = out.write_access()
-            var src_ptr = input_access.unsafe_ptr()
-            var dst_ptr = output_access.unsafe_ptr()
+            var src_ptr = self.unsafe_ptr()
+            var dst_ptr = out.unsafe_mut_ptr()
             for i in range(self.size()):
                 dst_ptr[unsafe_offset=i] = src_ptr[unsafe_offset=i]
         else:
-            var output_access = out.write_access()
             self._buf.device_storage.unsafe_value().get_buffer().enqueue_copy_to(
-                output_access.unsafe_ptr()
+                out.unsafe_mut_ptr()
             )
             self._buf.device_storage.unsafe_value().get_buffer().context().synchronize()
 
@@ -981,10 +949,8 @@ struct AcceleratorNDArray[
             var out = AcceleratorNDArray[Self.dtype, target](shape=host.shape())
             out._layout = host._layout.copy()
             out.flags = host.flags
-            var input_access = host.read_access()
-            var output_access = out.write_access()
-            var src_ptr = input_access.unsafe_ptr()
-            var dst_ptr = output_access.unsafe_ptr()
+            var src_ptr = host.unsafe_ptr()
+            var dst_ptr = out.unsafe_mut_ptr()
             for i in range(host.size()):
                 dst_ptr[unsafe_offset=i] = src_ptr[unsafe_offset=i]
             return out^
@@ -993,9 +959,8 @@ struct AcceleratorNDArray[
             var out = AcceleratorNDArray[Self.dtype, target](shape=host.shape())
             out._layout = host._layout.copy()
             out.flags = host.flags
-            var input_access = host.read_access()
             out._buf.device_storage.unsafe_value().get_buffer().enqueue_copy_from(
-                input_access.unsafe_ptr()
+                host.unsafe_ptr()
             )
             out._buf.device_storage.unsafe_value().get_buffer().context().synchronize()
             return out^
@@ -1056,12 +1021,9 @@ struct AcceleratorNDArray[
 
         comptime if Self.device.type == "cpu":
             comptime assert Self.device.type == "cpu"
-            var output_access = out.write_access()
-            var left_access = self.read_access()
-            var right_access = other.read_access()
-            var dst = output_access.unsafe_ptr()
-            var src1 = left_access.unsafe_ptr()
-            var src2 = right_access.unsafe_ptr()
+            var dst = out.unsafe_mut_ptr()
+            var src1 = self.unsafe_ptr()
+            var src2 = other.unsafe_ptr()
             comptime if op_code == kernels.ADD:
                 for i in range(self.size()):
                     dst[unsafe_offset=i] = (
@@ -1085,16 +1047,13 @@ struct AcceleratorNDArray[
         else:
             comptime assert Self.device.type == "gpu"
             var context = self.device_context()
-            var output_access = out.write_access()
-            var left_access = self.read_access()
-            var right_access = other.read_access()
             kernels.launch_binary_op[Self.dtype, op_code](
                 context,
-                output_access.unsafe_ptr().unsafe_origin_cast[MutAnyOrigin](),
-                left_access.unsafe_ptr()
+                out.unsafe_mut_ptr().unsafe_origin_cast[MutAnyOrigin](),
+                self.unsafe_ptr()
                 .unsafe_mut_cast[True]()
                 .unsafe_origin_cast[MutAnyOrigin](),
-                right_access.unsafe_ptr()
+                other.unsafe_ptr()
                 .unsafe_mut_cast[True]()
                 .unsafe_origin_cast[MutAnyOrigin](),
                 self.size(),
@@ -1139,8 +1098,7 @@ struct AcceleratorNDArray[
 
         comptime if Self.device.type == "cpu":
             comptime assert Self.device.type == "cpu"
-            var input_access = self.read_access()
-            var src = input_access.unsafe_ptr()
+            var src = self.unsafe_ptr()
             var result = Scalar[Self.dtype](0)
             for i in range(self.size()):
                 result += src[unsafe_offset=i]
@@ -1148,10 +1106,9 @@ struct AcceleratorNDArray[
         else:
             comptime assert Self.device.type == "gpu"
             var context = self.device_context()
-            var input_access = self.read_access()
             return kernels.launch_sum_reduce[Self.dtype](
                 context,
-                input_access.unsafe_ptr()
+                self.unsafe_ptr()
                 .unsafe_mut_cast[True]()
                 .unsafe_origin_cast[MutAnyOrigin](),
                 self.size(),
@@ -1180,21 +1137,17 @@ struct AcceleratorNDArray[
 
         comptime if Self.device.type == "cpu":
             comptime assert Self.device.type == "cpu"
-            var output_access = out.write_access()
-            var input_access = self.read_access()
-            var dst = output_access.unsafe_ptr()
-            var src = input_access.unsafe_ptr()
+            var dst = out.unsafe_mut_ptr()
+            var src = self.unsafe_ptr()
             for i in range(self.size()):
                 dst[unsafe_offset=i] = -src[unsafe_offset=i]
         else:
             comptime assert Self.device.type == "gpu"
             var context = self.device_context()
-            var output_access = out.write_access()
-            var input_access = self.read_access()
             kernels.launch_neg[Self.dtype](
                 context,
-                output_access.unsafe_ptr().unsafe_origin_cast[MutAnyOrigin](),
-                input_access.unsafe_ptr()
+                out.unsafe_mut_ptr().unsafe_origin_cast[MutAnyOrigin](),
+                self.unsafe_ptr()
                 .unsafe_mut_cast[True]()
                 .unsafe_origin_cast[MutAnyOrigin](),
                 self.size(),
